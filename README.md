@@ -68,4 +68,37 @@ Observability is key. Save every request and response made to the APIs to a **pr
 ---
 
 ## How to run
-Please fill this section as part of the assignment.
+
+
+Activate your virtual environment and move to working directory where **main.py** and **app.py** are present.
+Then, install required packages by executing:
+
+`pip install -r requirements.txt`
+
+After that to execute model pipelines that satisfy requirements of **challenge #1** and **#2**, execute:
+
+`python main.py --model linear --conf_path  configuration.yaml`
+
+Above line will execute pipeline for Linear model, to execute for other two models pass `--model log_linear` 
+or `--model xgb` instead.
+
+Finally, these pipelines have been integrated into the Web App to run in the background at specified intervals.
+
+Execute web app by executing:
+
+`python app.py --conf_path  configuration.yaml`
+
+Web app provide two functionalities:
+
+* **Price prediction**. Default is used xgb model, since from Marta's analysis has been found the one with better performance,
+  otherwise is possible to specify the model. 
+  Usage examples:  
+`curl -X POST -H "Content-Type: application/json" -d "{\"carat\": \"1.5\"}" http://127.0.0.1:5000/predict/linear`  
+* **Similar weight** sampling. Samples n records from train set with same **cut**, **color** and **clarity** and most similar
+  weight, i.e. **carat**.
+Usage examples:  
+`curl -X POST -H "Content-Type: application/json" -d "{\"cut\": \"Ideal\", \"color\": \"H\", \"clarity\": \"SI2\",\"carat\": \"1.5\"}" http://127.0.0.1:5000/predict/samples`
+
+By default, 5 samples are returned, is it possible to sample desired quantities by passing the amount in API url,
+for example http://127.0.0.1:5000/predict/samples/10 .
+
