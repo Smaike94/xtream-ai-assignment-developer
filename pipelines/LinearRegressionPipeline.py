@@ -19,23 +19,31 @@ class LinearRegressionPipeline(Pipeline):
         self._set_save_path(kwargs.get("save_path") or MODELS_PATH)
 
     def format_data(self, data_to_format: dict, for_prediction: bool = False) -> pd.DataFrame:
-        import pandas as pd
+        """
+        This method override format_data over super class BasePipeline, since for Linear regression models
+        is needed to do specific procedure. In particular, is needed to return formatted data with features in same order
+        has been passed in training phase.
+        :param data_to_format:
+        :param for_prediction:
+        :return:
+        """
         cat_columns = ['cut', 'color', 'clarity']
         formatted_data = super().format_data(data_to_format, for_prediction=False)
         formatted_data[cat_columns] = formatted_data[cat_columns].apply(lambda col: col.name + '_' + col.astype(str))
+        # Get feature names of already trained model
         features_name = getattr(self.model, "feature_names_in_", [])
         features_data = pd.DataFrame(columns=features_name, index=range(len(formatted_data)))
         for col in features_data.columns:
             if col in formatted_data.columns:
                 features_data[col] = formatted_data[col].astype(formatted_data[col].dtype)
             else:
+                # In case of categorical feature name, formatted with column name + dummy value.
                 col_prefix = col.split('_')[0]
                 features_data[col] = formatted_data[col_prefix].isin([col])
         return features_data
 
     def data_preparation(self, data_to_prepare: pd.DataFrame = None) -> pd.DataFrame:
         data_to_prepare = self.dataset if data_to_prepare is None else data_to_prepare
-        # data_to_prepare = data_to_prepare or self.dataset
         data_to_prepare = data_to_prepare.drop(columns=['depth', 'table', 'y', 'z'])
         data_to_prepare = pd.get_dummies(data_to_prepare, columns=['cut', 'color', 'clarity'], drop_first=True)
         self.dataset = data_to_prepare

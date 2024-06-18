@@ -21,6 +21,14 @@ DEFAULT_SEED, DEFAULT_TEST_SIZE = 42, 0.2
 
 
 def check_new_data_from_url(url: str, model_name: str, db: Session) -> Tuple[bool, bool, list]:
+    """
+    Given model name this method will check in on database if old requests for same data has been done, in order
+    to prevent to fetch again already used data.
+    :param url: from which check for data response
+    :param model_name: name of model for which perform controls
+    :param db: database session
+    :return:
+    """
     response = requests.get(url, json={"model_name": model_name})
     response_sha = get_sha256(response.text)
     dumped_sha = json.dumps(response_sha)
@@ -28,30 +36,36 @@ def check_new_data_from_url(url: str, model_name: str, db: Session) -> Tuple[boo
     get_model_name_from_req = lambda req: json.loads(str(req.request_body)).get("model_name", "")
     all_requests = db.query(Request).all()
     timestamp_requests = []
+    # check if current data has already been requested by other models
     previous_requests_same_sha = [prev_request for prev_request in all_requests if
                                   prev_request.response_body == dumped_sha]
     if previous_requests_same_sha:
+        # If yes add timestamp of the oldest request made
         timestamp_requests.append(previous_requests_same_sha[0].timestamp.isoformat())
 
+    # check all previous requests done by current model and check if same requests have been made by other models.
+    # If so for each one oldest timestamp has been saved.
     previous_requests_by_model_body = [prev_request.response_body for prev_request in all_requests
                                        if get_model_name_from_req(prev_request) == model_name]
 
     for el in previous_requests_by_model_body:
-        tmp = [prev_request for prev_request in all_requests if prev_request.response_body == el]
-        if tmp:
-            timestamp_requests.append(tmp[0].timestamp.isoformat())
+        requests_with_same_body = [prev_request for prev_request in all_requests if prev_request.response_body == el]
+        if requests_with_same_body:
+            timestamp_requests.append(requests_with_same_body[0].timestamp.isoformat())
 
-    if_new_sha_for_model = [prev_request for prev_request in previous_requests_same_sha
-                            if get_model_name_from_req(prev_request) == model_name]
-    data_already_downloaded, new_data_for_model = len(previous_requests_same_sha) != 0, len(if_new_sha_for_model) == 0
-
+    # Finally check if data requested is new request for current model
+    previous_requests_same_sha_by_model = [prev_request for prev_request in previous_requests_same_sha
+                                           if get_model_name_from_req(prev_request) == model_name]
+    data_already_downloaded = len(previous_requests_same_sha) != 0
+    new_data_for_model = len(previous_requests_same_sha_by_model) == 0
 
     if not data_already_downloaded or new_data_for_model:
-        tmp = save_request_response(db, response.request.method, response.request.url,
-                                    dict(response.request.headers), json.loads(response.request.body.decode()),
-                                    response.status_code, dict(response.headers), response_sha)
+        request_object = save_request_response(db, response.request.method, response.request.url,
+                                               dict(response.request.headers),
+                                               json.loads(response.request.body.decode()),
+                                               response.status_code, dict(response.headers), response_sha)
         if not data_already_downloaded:
-            timestamp_requests.append(tmp.timestamp.isoformat())
+            timestamp_requests.append(request_object.timestamp.isoformat())
 
     return data_already_downloaded, new_data_for_model, timestamp_requests
 
@@ -87,7 +101,14 @@ class Pipeline:
         timestamp = datetime.now().replace(microsecond=0).isoformat().replace(":", "-")
         self.save_path = Path(save_path) / self.model_name / timestamp
 
-    def fetch_data(self, check_new_data: bool = True):
+    def fetch_data(self, check_new_data: bool = True) -> Tuple[pd.DataFrame, bool]:
+        """
+        This method will fetch new data. It is also implements logic that check if old data has been already fetched,
+        and in case no train will be executed after data fetching. Test set is saved and no more changed,
+        in order to guarantee consistency between model performance comparison.
+        :param check_new_data: if true will control for previous requests, otherwise will only read existing files
+        :return:
+        """
         new_data_found = False or (self.find_best_model(echo=False) is None)
         # Get local data csv files, both for train and test set
 
@@ -100,10 +121,8 @@ class Pipeline:
         if csv_files["test"]:
             test_data = pd.concat([pd.read_csv(test_files) for test_files in csv_files["test"]])
         else:
-            # Pensa se fare a modo tuo o meno
             train_data, test_data = self.split_data(self.data_cleaning(train_data))
             test_data.to_csv(DATA_PATH / "diamonds_test.csv", index=False)
-            # train_data.to_csv(DATA_PATH / f"diamonds.csv", index=False)
 
         if check_new_data:
             if validators.url(self.data_src):
@@ -130,10 +149,7 @@ class Pipeline:
                     train_data["Timestamp"] = timestamps[-1]
                     train_data.to_csv(DATA_PATH / "diamonds.csv", index=False)
 
-            # assert not train_data.apply(tuple, 1).isin(test_data.apply(tuple, 1)).any()
-
         train_data["split"], test_data["split"] = "train", "test"
-        # self.dataset = pd.concat([train_data.reset_index(drop=True), test_data.reset_index(drop=True)])
         self.dataset = pd.concat([train_data.drop(columns=["Timestamp"], errors="ignore"), test_data])
         return self.dataset, new_data_found
 
