@@ -1,0 +1,34 @@
+web_service:
+  host: 127.0.0.1 # Set host for REST API.
+  port: 5000 # Set port for REST API.
+  interval_time_background_task: 5 # Expressed in minutes
+
+data_src: https://raw.githubusercontent.com/Smaike94/xtream-ai-assignment-developer/main/data/diamonds.csv
+seed: 42
+test_size: 0.2
+hyperparameters:
+  n_trials: 100
+  lambda:
+    low_high: 1e-8, 1.0
+    type: float
+  alpha:
+    low_high: 1e-8, 1.0
+    type: float
+  learning_rate:
+    low_high: 1e-8, 1.0
+    type: float
+  n_estimators:
+    low_high: 100, 1000
+    type: int
+  max_depth:
+    low_high: 3, 9
+    type: int
+  min_child_weight:
+    low_high: 1, 10
+    type: int
+  colsample_bytree:
+    type: categorical
+    choices: 0.3, 0.4, 0.5, 0.7
+  subsample:
+    type: categorical
+    choices: 0.5, 0.6, 0.7, 0.8, 0.9, 1.0
