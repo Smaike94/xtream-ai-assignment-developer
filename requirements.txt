@@ -12,3 +12,4 @@ numpy~=1.26.4
 flask~=3.0.3
 SQLAlchemy~=2.0.30
 requests~=2.32.3
+flask_apscheduler
